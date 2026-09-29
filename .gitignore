@@ -1,0 +1,23 @@
+.gradle/
+.gradle-user/
+.kotlin/
+**/build/
+local.properties
+*.jks
+*.keystore
+.signing/
+.idea/
+*.iml
+tools/*.log
+tools-*.log
+
+# Local artifacts and downloads
+tools/audit/
+tools/android-setup/
+releases/
+*.apk
+*.aab
+*.hprof
+*.log
+.DS_Store
+Thumbs.db

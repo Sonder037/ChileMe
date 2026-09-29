@@ -1,0 +1,811 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "ask_user",
+      "description": "缺少影响正确记录的关键信息时，提供一个简短问题和2至4个可点击选项。等待用户选择后继续；不代替餐饮确认，不与记录工具同时调用。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "description": "一个必要问题，最多120字",
+            "maxLength": 120
+          },
+          "options": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 4,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "description": "简短、互不重复的答案，最多40字",
+              "maxLength": 40
+            }
+          }
+        },
+        "required": [
+          "question",
+          "options"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "function": {
+      "name": "query_meals",
+      "description": "按日期查询本地餐饮、逐项蛋白质/碳水/脂肪克数及未确认估算草稿，state区分。编辑前先查询取得真实meal_id；一次最多31天、20条，truncated时用next_offset继续查询。",
+      "parameters": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+          "offset": {
+            "description": "省略从0开始；继续查询时使用上次返回的next_offset，保持日期范围相同",
+            "type": "integer",
+            "minimum": 0
+          },
+          "from": {
+            "description": "起始日期 YYYY-MM-DD",
+            "type": "string"
+          },
+          "to": {
+            "description": "结束日期 YYYY-MM-DD",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ]
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "name": "record_meal",
+      "description": "用户明确说已吃/喝或要求记录时创建待确认草稿。仅讨论建议、食谱或假设时禁止记录。一次会话最多创建或编辑一餐。",
+      "parameters": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+          "date": {
+            "description": "用餐日期 YYYY-MM-DD，省略为今天。用户提到昨天等相对日期时必须换算。",
+            "type": "string"
+          },
+          "meal_type": {
+            "description": "优先用户明确餐次；不明确则省略，由本机按时间推断。可选早餐、午餐、晚餐、夜宵、加餐。",
+            "type": "string"
+          },
+          "time": {
+            "description": "用餐时间 HH:mm；优先用户明确时间，省略为当前设备时间。",
+            "type": "string"
+          },
+          "items": {
+            "minItems": 1,
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "additionalProperties": false,
+              "type": "object",
+              "properties": {
+                "kcal": {
+                  "maximum": 10000,
+                  "description": "该份食物的估算热量，不是每100克；无法估算先询问",
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "unit": {
+                  "description": "固体优先g，液体优先ml；包装数量可用份、个、杯、碗、瓶、盒、片",
+                  "type": "string",
+                  "enum": [
+                    "g",
+                    "ml",
+                    "份",
+                    "个",
+                    "杯",
+                    "碗",
+                    "瓶",
+                    "盒",
+                    "片"
+                  ]
+                },
+                "quantity": {
+                  "maximum": 10000,
+                  "description": "实际摄入份量，数值与单位分开；未知为null，不把ml当作g；0只用于未摄入该项且kcal为0",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "name": {
+                  "description": "食物名；不能编造不认识的食品",
+                  "type": "string"
+                },
+                "category": {
+                  "description": "食品分类；纯牛奶、酸奶属于奶类；豆浆、豆腐属于豆类；茶、咖啡属于饮品。不确定选其他",
+                  "type": "string",
+                  "enum": [
+                    "主食",
+                    "蔬菜",
+                    "水果",
+                    "肉蛋鱼",
+                    "奶类",
+                    "豆类",
+                    "饮品",
+                    "零食",
+                    "其他"
+                  ]
+                },
+                "nutrients": {
+                  "type": "object",
+                  "properties": {
+                    "protein_g": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 2500,
+                      "description": "整份蛋白质克数，未知为null"
+                    },
+                    "carbs_g": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 2500,
+                      "description": "整份总碳水克数，不是糖，未知为null"
+                    },
+                    "fat_g": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 2500,
+                      "description": "整份脂肪克数，未知为null"
+                    }
+                  },
+                  "required": [
+                    "protein_g",
+                    "carbs_g",
+                    "fat_g"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "name",
+                "quantity",
+                "unit",
+                "kcal",
+                "category"
+              ]
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "name": "estimate_meal",
+      "description": "饭前照片或仅询问热量时准备估算卡，尚未食用，不计入记录；可合理估计份量，回复仅提示核对卡片。",
+      "parameters": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+          "date": {
+            "description": "用餐日期 YYYY-MM-DD，省略为今天。用户提到昨天等相对日期时必须换算。",
+            "type": "string"
+          },
+          "meal_type": {
+            "description": "优先用户明确餐次；不明确则省略，由本机按时间推断。可选早餐、午餐、晚餐、夜宵、加餐。",
+            "type": "string"
+          },
+          "time": {
+            "description": "用餐时间 HH:mm；优先用户明确时间，省略为当前设备时间。",
+            "type": "string"
+          },
+          "items": {
+            "minItems": 1,
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "additionalProperties": false,
+              "type": "object",
+              "properties": {
+                "kcal": {
+                  "maximum": 10000,
+                  "description": "该份食物的估算热量，不是每100克；无法估算先询问",
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "unit": {
+                  "description": "固体优先g，液体优先ml；包装数量可用份、个、杯、碗、瓶、盒、片",
+                  "type": "string",
+                  "enum": [
+                    "g",
+                    "ml",
+                    "份",
+                    "个",
+                    "杯",
+                    "碗",
+                    "瓶",
+                    "盒",
+                    "片"
+                  ]
+                },
+                "quantity": {
+                  "maximum": 10000,
+                  "description": "实际摄入份量，数值与单位分开；未知为null，不把ml当作g；0只用于未摄入该项且kcal为0",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "name": {
+                  "description": "食物名；不能编造不认识的食品",
+                  "type": "string"
+                },
+                "category": {
+                  "description": "食品分类；纯牛奶、酸奶属于奶类；豆浆、豆腐属于豆类；茶、咖啡属于饮品。不确定选其他",
+                  "type": "string",
+                  "enum": [
+                    "主食",
+                    "蔬菜",
+                    "水果",
+                    "肉蛋鱼",
+                    "奶类",
+                    "豆类",
+                    "饮品",
+                    "零食",
+                    "其他"
+                  ]
+                },
+                "nutrients": {
+                  "type": "object",
+                  "properties": {
+                    "protein_g": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 2500,
+                      "description": "整份蛋白质克数，未知为null"
+                    },
+                    "carbs_g": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 2500,
+                      "description": "整份总碳水克数，不是糖，未知为null"
+                    },
+                    "fat_g": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 2500,
+                      "description": "整份脂肪克数，未知为null"
+                    }
+                  },
+                  "required": [
+                    "protein_g",
+                    "carbs_g",
+                    "fat_g"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "name",
+                "quantity",
+                "unit",
+                "kcal",
+                "category"
+              ]
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "name": "edit_meal",
+      "description": "基于已查询到的meal_id修改已确认记录或待确认卡片（state=draft），草稿原卡更新。items必须是修改后完整食物列表，保留未变项目；不确定要先询问。仅确认后覆盖原记录。",
+      "parameters": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+          "date": {
+            "description": "用餐日期 YYYY-MM-DD，省略为今天。用户提到昨天等相对日期时必须换算。",
+            "type": "string"
+          },
+          "meal_type": {
+            "description": "优先用户明确餐次；不明确则省略，由本机按时间推断。可选早餐、午餐、晚餐、夜宵、加餐。",
+            "type": "string"
+          },
+          "time": {
+            "description": "用餐时间 HH:mm；优先用户明确时间，省略为当前设备时间。",
+            "type": "string"
+          },
+          "items": {
+            "minItems": 1,
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "additionalProperties": false,
+              "type": "object",
+              "properties": {
+                "kcal": {
+                  "maximum": 10000,
+                  "description": "该份食物的估算热量，不是每100克；无法估算先询问",
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "unit": {
+                  "description": "固体优先g，液体优先ml；包装数量可用份、个、杯、碗、瓶、盒、片",
+                  "type": "string",
+                  "enum": [
+                    "g",
+                    "ml",
+                    "份",
+                    "个",
+                    "杯",
+                    "碗",
+                    "瓶",
+                    "盒",
+                    "片"
+                  ]
+                },
+                "quantity": {
+                  "maximum": 10000,
+                  "description": "实际摄入份量，数值与单位分开；未知为null，不把ml当作g；0只用于未摄入该项且kcal为0",
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "name": {
+                  "description": "食物名；不能编造不认识的食品",
+                  "type": "string"
+                },
+                "category": {
+                  "description": "食品分类；纯牛奶、酸奶属于奶类；豆浆、豆腐属于豆类；茶、咖啡属于饮品。不确定选其他",
+                  "type": "string",
+                  "enum": [
+                    "主食",
+                    "蔬菜",
+                    "水果",
+                    "肉蛋鱼",
+                    "奶类",
+                    "豆类",
+                    "饮品",
+                    "零食",
+                    "其他"
+                  ]
+                },
+                "nutrients": {
+                  "type": "object",
+                  "properties": {
+                    "protein_g": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 2500,
+                      "description": "整份蛋白质克数，未知为null"
+                    },
+                    "carbs_g": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 2500,
+                      "description": "整份总碳水克数，不是糖，未知为null"
+                    },
+                    "fat_g": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 2500,
+                      "description": "整份脂肪克数，未知为null"
+                    }
+                  },
+                  "required": [
+                    "protein_g",
+                    "carbs_g",
+                    "fat_g"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "name",
+                "quantity",
+                "unit",
+                "kcal",
+                "category"
+              ]
+            }
+          },
+          "meal_id": {
+            "description": "query_meals返回的真实meal_id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "meal_id",
+          "items"
+        ]
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "name": "record_exercise",
+      "description": "用户明确已完成运动或要求记录时使用；计划或建议禁止记录。本机自动保存，聊天卡片可编辑删除。缺信息先问。",
+      "parameters": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+          "date": {
+            "description": "运动日期 YYYY-MM-DD，省略今天",
+            "type": "string"
+          },
+          "minutes": {
+            "description": "时长，1至1440分钟",
+            "type": "integer"
+          },
+          "name": {
+            "description": "实际运动名称；估算支持散步、快走、慢跑，不能把未知运动映射为这些类型",
+            "type": "string"
+          },
+          "time": {
+            "description": "运动时间 HH:mm，省略当前时间",
+            "type": "string"
+          },
+          "active_kcal": {
+            "description": "可选：用户明确提供的活动千卡，0至10000，不含静息；不允许模型自编数值。没有则省略，由本机MET估算",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "minutes"
+        ]
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "name": "query_exercises",
+      "description": "查询1至31天本地运动记录，最多50条；不猜已记录数据",
+      "parameters": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+          "from": {
+            "description": "开始日期 YYYY-MM-DD",
+            "type": "string"
+          },
+          "to": {
+            "description": "结束日期 YYYY-MM-DD",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ]
+      }
+    },
+    "type": "function"
+  },
+  {
+    "function": {
+      "name": "query_progress",
+      "description": "汇总1至31天全部已确认餐饮、运动和当时身体数据；七天总结及营养素查询优先使用，包含每日蛋白质、碳水、脂肪的已知量、缺项数和参考量，以及缺失天数和本机算好的差值、脂肪能量当量",
+      "parameters": {
+        "additionalProperties": false,
+        "type": "object",
+        "properties": {
+          "from": {
+            "description": "开始日期 YYYY-MM-DD",
+            "type": "string"
+          },
+          "to": {
+            "description": "结束日期 YYYY-MM-DD",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ]
+      }
+    },
+    "type": "function"
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "query_settings",
+      "description": "读取当前身体资料、活动等级、按日期覆盖及可编辑设置；不会返回API Key。修改前先查询。",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "update_profile",
+      "description": "用户明确要求修改身体资料或每日默认活动时使用，仅传用户要改的字段。从今天生效，生成确认卡，不能默默改历史。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "sex": {
+            "type": "string",
+            "description": "性别",
+            "enum": [
+              "male",
+              "female"
+            ]
+          },
+          "age": {
+            "type": "integer",
+            "description": "年龄",
+            "minimum": 1,
+            "maximum": 120
+          },
+          "height": {
+            "type": "number",
+            "description": "身高cm",
+            "minimum": 80,
+            "maximum": 250
+          },
+          "weight": {
+            "type": "number",
+            "description": "体重kg",
+            "minimum": 15,
+            "maximum": 350
+          },
+          "activity": {
+            "type": "string",
+            "description": "活动级别；全天活动含运动，不能重复加运动热量",
+            "enum": [
+              "sedentary",
+              "light",
+              "moderate",
+              "high"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "set_daily_activity",
+      "description": "仅修改用户指定某一天的活动等级；不修改每天默认。default恢复当天适用默认。先query_settings，生成确认卡。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "YYYY-MM-DD，不能未来"
+          },
+          "activity": {
+            "type": "string",
+            "description": "当天活动",
+            "enum": [
+              "sedentary",
+              "light",
+              "moderate",
+              "high",
+              "default"
+            ]
+          }
+        },
+        "required": [
+          "date",
+          "activity"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "edit_exercise",
+      "description": "修改一条已记录运动；先query_exercises取得真实id。更改时长或名称且未提供千卡时本机重新计算，未知类型先问。生成确认卡。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "exercise_id": {
+            "type": "string",
+            "description": "真实id"
+          },
+          "name": {
+            "type": "string",
+            "description": "运动名称",
+            "maxLength": 80
+          },
+          "minutes": {
+            "type": "integer",
+            "description": "分钟",
+            "minimum": 1,
+            "maximum": 1440
+          },
+          "active_kcal": {
+            "type": "integer",
+            "description": "仅用户明确提供的净活动千卡",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "date": {
+            "type": "string",
+            "description": "YYYY-MM-DD"
+          },
+          "time": {
+            "type": "string",
+            "description": "HH:mm"
+          }
+        },
+        "required": [
+          "exercise_id"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "delete_record",
+      "description": "删除单条已确认饮食或运动。先查出真实id，应用显示确认卡，不直接删除。批量请求逐条确认。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "类型",
+            "enum": [
+              "meal",
+              "exercise"
+            ]
+          },
+          "record_id": {
+            "type": "string",
+            "description": "真实记录id"
+          }
+        },
+        "required": [
+          "kind",
+          "record_id"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "update_settings",
+      "description": "用户主动要求修改时使用；先query_settings，仅传变化字段，应用确认后生效。API Key必须在本机连接AI页面输入，禁止放入对话。更换服务地址会清除旧密钥。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "base_url": {
+            "type": "string",
+            "description": "HTTPS服务地址",
+            "maxLength": 500
+          },
+          "chat_model": {
+            "type": "string",
+            "description": "聊天模型名",
+            "maxLength": 150
+          },
+          "vision_model": {
+            "type": "string",
+            "description": "视觉模型名",
+            "maxLength": 150
+          },
+          "memory_enabled": {
+            "type": "boolean",
+            "description": "是否记录本地记忆"
+          },
+          "include_memory": {
+            "type": "boolean",
+            "description": "发送时是否附带记忆"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "query_memories",
+      "description": "仅用户主动要求查看或修改记忆时查询。关键词检索最多20条，不自动遍历全部记忆。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "maxLength": 80,
+            "description": "用户所说记忆关键词，非空"
+          }
+        },
+        "required": [
+          "keyword"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "edit_memory",
+      "description": "先query_memories获取真实key；修改或删除单条记忆，生成确认卡。text=null删除，字符串替换内容。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "key",
+          "text"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+]
